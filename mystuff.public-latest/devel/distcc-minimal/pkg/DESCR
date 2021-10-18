@@ -1,0 +1,10 @@
+distcc is a program to distribute compilation of C or C++ code across
+several machines on a network. distcc should always generate the same
+results as a local compile, is simple to install and use, and is often
+two or more times faster than a local compile.
+
+This UNOFFICIAL PORT allows to build a distcc client without needing to build
+GTK, and was solely made to allow building it on my macppc machines faster when
+i can't pull the package (python/clang version bumps for example).
+
+Don't forget to remove your COMPILER_WRAPPER line from /etc/mk.conf!

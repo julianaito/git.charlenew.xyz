@@ -1,0 +1,53 @@
++------------+
+| mountpoint |
++------------+
+
+
+About
+=====
+
+
+mountpoint is an OpenBSD-compatible version of the similarly named util-linux
+utility. It allows to check if a given file or directory is a mountpoint.
+
+Some examples:
+
+    $ mountpoint /
+    / is a valid mountpoint.
+    $ mountpoint -q / && echo "I said / is a valid mountpoint"
+    I said / is a valid mountpoint
+    $ mountpoint -b /usr/local
+    /dev/sd1g
+
+Fetching block devices major and minor is not implemented, you can use stat(1)
+for this:
+
+    $ stat -f "%Hr:%Lr" /dev/sd1g
+    4:22
+
+Please see the bundled manpage for more informations.
+
+
+Installing
+==========
+
+
+All you need is a C99-capable compiler
+
+    $ make
+    # make install
+
+Installation defaults to /usr/local/bin and /usr/local/man/man1.
+You may want to check out the PREFIX, MANDIR and BINDIR environment
+variables.
+
+Uninstalling is also supported:
+
+    # make uninstall
+
+
+License
+=======
+
+
+mountpoint is released under The Unlicense, see http://unlicense.org/

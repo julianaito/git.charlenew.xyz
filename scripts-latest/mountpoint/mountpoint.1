@@ -1,0 +1,69 @@
+.Dd 2020-11-15
+.Dt MOUNTPOINT 1
+.Os
+.Sh NAME
+.Nm mountpoint
+.Nd see if a directory or file is a mountpoint
+.Sh SYNOPSIS
+.Nm mountpoint
+.Op Fl q
+.Op Fl b | h
+.Ar possible_mountpoint
+.Sh DESCRIPTION
+The
+.Nm
+utility checks if a directory or a file is a mountpoint.
+.Pp
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl b
+If
+.Ar possible_mountpoint
+is actually a mountpoint,
+show the corresponding block device (or filesystem).
+.It Fl h
+Show a short help message
+.It Fl q
+Do not output anything, even errors.
+.El
+.Sh EXIT STATUS
+The
+.Nm
+utility exits 0 if the directory or file is a mountpoint, >0 otherwise.
+.Sh EXAMPLES
+Check if
+.Pa /usr/local
+is actually a mountpoint:
+.Pp
+.Dl $ mountpoint /usr/local
+.Dl $ # silently with custom actions:
+.Dl $ mountpoint -q /usr/local && echo "/usr/local is a valid mountpoint"
+.Pp
+Get the block device for a given mountpoint:
+.Pp
+.Dl $ mountpoint -b /
+.Sh SEE ALSO
+.Xr mount 8 ,
+.Xr stat 1
+.Sh HISTORY
+A
+.Nm
+command appeared in util-linux in 2011.
+.Pp
+That version, working on
+.Ox ,
+is not faithful to the util-linux one.
+Block devices major and minor numbers can be fetched using
+.Xr stat 1 ,
+so that functionality has not been implemented.
+.Fl b
+option is an addition, saving
+.Xr awk  1
+and
+.Xr df 1
+calls when trying to fetch the corresponding block device.
+.Sh BUGS
+.Pp
+There may be some.
+

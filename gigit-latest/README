@@ -1,0 +1,184 @@
+GIGIT
+=====
+
+Gigit is the generally inefficient git indexer. This allows to make quick
+static html indexes from your git repos, similarly to stagit, but with WAY
+less features:
+
+- It does not deal with tags and branches, only main/HEAD
+- It has no locking mechanism, so it's single user, one push at a time
+
+But:
+
+- It generates automatically tarballs of main/HEAD
+- It generates automatically a browsable version of your repo, with changelogs
+- It generates a global index, where you can clone, browse and download the
+  latest tarball
+
+... and that it's. It only requires git and basic shell commands.
+
+The operation is based on bare git repositories.
+
+Howto
+=====
+
+Written as i'm importing gigit.
+
+Installing gigit
+----------------
+
+Customise 'gigit' and copy 'gigit' somewhere in your $PATH, '/usr/local/bin'
+for example, that's all.
+
+We assume that we have a web server running, with all code your being in
+$OLDWWWSRC and the new in $WWWSRC. Commands that should be run with '$'
+are supposed to be made as the user you commit with (ssh transport is
+assumed).
+
+First you'll need your repositories root directory to be created:
+
+  # mkdir $WWWSRC
+  $ cd $WWWSRC
+
+(you will need to use 'chown' against the created directory as well)
+
+Branch name
+-----------
+
+Note that gigit uses 'main' instead of 'master' for the default branch.
+You can revert to 'master' by issueing in a checked out directory:
+
+    $ git revert 4f580dfa7bee6045de57fdb67694cc3ceb7550d3
+
+This revert only the post receive hook; you could also change the reference in
+it instead by 'master', 'trunk' or whatever you're using.
+
+If you've git>2.28, you can set up the default branch name like this:
+
+    $ git config --global init.defaultBranch main
+
+There are a lot of tutorials on how to change the default branch name on your
+existing repos, i also made one at:
+
+https://charlenew.xyz/pages/git_bare_master_to_main.html
+
+
+Creating/converting a repository
+--------------------------------
+
+Maybe you have no repositories at all, so here is how to create one:
+    
+    $ git init --bare myproject.git
+
+Maybe you have a working repository, with files directly readable, in
+such a case you need to clone it as a bare repo and put it in $WWWSRC:
+
+    $ cd /tmp; git clone --bare $OLDWWWSRC/myproject
+
+And copy the 'myproject.git' directory directly to your server, in $WWWSRC.
+
+Add a description
+-----------------
+
+You can add a description for your repo, HTML is allowed and will be
+displayed properly:
+
+    $ cd $WWWSRC/myproject.git; vi description
+
+Add the hook
+------------
+
+The hook will allow you to trigger some actions on events, here it's just doing
+what i mentioned in the intro after a commit. You need to do that for *every*
+repo you use.
+
+    $ cp /where/you/extracted/gigit/post-receive $WWWSRC/myproject.git/hooks
+    $ chmod 0755 $WWWSRC/myproject.git/hooks/post-receive
+
+Fetch the repo
+--------------
+
+Now it's time to get the git repo on your machine:
+
+    $ git clone ssh://my.server:/$WWWSRC/myproject.git
+    $ cd myproject
+
+
+Commit something
+----------------
+
+I won't detail here, many guides exist to learn you git's basic usage.
+
+It's needed to commit something for every project you want to import,
+you can use an empty commit:
+
+    $ git commit --allow-empty -m "migrated to gigit"
+
+Once the commit is done, the hook will be triggered, index.html will be
+generated, and so are the latest tarball and browsable directory update.
+
+
+My new project does not appear in the index
+-------------------------------------------
+
+It's likely because you forgot to add your new project to gigit's PROJECTS:
+
+    # vi /where/your/gigit/script/is/gigit
+    $ gigit $WWWSRC $PROJECT_NAME
+
+(And yes, this allows "hidden" repositories)
+
+
+But i want release tarballs
+---------------------------
+
+Here is one way to do this.
+
+    $ cd $WWWSRC
+    $ mkdir releases
+    $ cd myproject
+    $ git archive \
+        --format=tar.gz \
+        -o ../releases/myproject-1.0.tar.gz \
+        --prefix="myproject-1.0/"
+    $ echo '<p>Releases: <a href="/releases/myproject-1.0.tar.gz">1.0</a></p>' \
+        >> myproject.git/description
+
+
+This could be added in another hook i guess ;)
+
+
+BUGS
+====
+
+- Last update entry maybe messed up by merges with all the date involved being
+  displayed. Fixes are welcome (i rarely use merges).
+
+LICENSE
+=======
+
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org/>
+

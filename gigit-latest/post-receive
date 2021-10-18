@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# Needed for dumb transport
+git update-server-info
+
+# Root directory where all your repo are present
+BASE_WWW="$(dirname  "${PWD}\..\..")"
+# Human friendly repo name (usually the software name)
+REPO_NAME="$(basename "${PWD%%.git}")"
+# Directory where the human friendly version of the repo should be
+REPO_BASEDIR="${BASE_WWW}/${REPO_NAME}"
+TARBALL="${BASE_WWW}/${REPO_NAME}-latest.tar.gz"
+
+# Create "release" tarball
+git archive     --format=tar.gz \
+                --prefix="${REPO_NAME}-latest/" \
+                -o "${TARBALL}" \
+                main
+
+# Regen human friendly view of the repo
+rm -rf "${REPO_BASEDIR}"
+mkdir "${REPO_BASEDIR}"
+git archive     --format=tar \
+                main \
+        | tar -C "${REPO_BASEDIR}" -xf -
+
+gigit "${BASE_WWW}" "${REPO_NAME}"

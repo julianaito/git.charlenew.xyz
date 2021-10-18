@@ -1,0 +1,3 @@
+A TUI for Mastodon with vim inspired keys, written in go.
+
+Yanking URLs requires to install either the xsel or xclip package.

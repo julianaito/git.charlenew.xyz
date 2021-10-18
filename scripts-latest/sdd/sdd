@@ -1,0 +1,266 @@
+#!/usr/bin/env perl
+
+# Documentation is at the end; only base Perl is needed.
+
+use warnings;
+use strict;
+use 5.30.0;
+
+use Digest::SHA;
+use File::stat;
+use Pod::Usage qw( pod2usage );
+
+$| = 1;
+
+# Convert bytes to mebibytes
+sub btomb {
+    my $b = shift;
+    return $b / ( 2**20 );
+}
+
+# Convert seconds to the minutes:seconds format
+sub stoms {
+    my $s = shift;
+    my $m;
+
+    # Avoid warnings if the input file size is lower than BUFSIZ
+    $s = 0 unless ( defined $s );
+    $m = $s / 60;
+    $s = $s % 60;
+    return sprintf( "%02d:%02d", $m, $s );
+}
+
+if ( scalar @ARGV != 2 ) {
+    pod2usage( -verbose => 3, -noperldoc => 1 );
+    exit 1;
+}
+
+my $origin    = $ARGV[0];
+my $target    = $ARGV[1];
+my $target_re = $target;
+my $is_c_part = undef;
+my @mounted   = `mount`;
+my @mounted_partitions;
+
+if ( $^O eq "openbsd" ) {
+
+    # Convert raw character device name to block characters device
+    # to match mount(8)'s output: /dev/rsd1a -> /dev/sd1a
+    $target_re =~ s#^(/dev/)r(.+)#$1$2# if ( -c $target );
+
+    # Convert block character devices to raw character ones for
+    # the output target: /dev/sd1a -> /dev/rsd1a
+    $target =~ s#^(/dev/)(.+)#$1r$2# if ( -b $target );
+
+    # c partition means whole disk. Check all other partitions
+    # from that device
+    if ( $target =~ /c$/ and ( -b $target or -c $target ) ) {
+        $target_re =~ s/c$//;
+        $is_c_part = 1;
+    }
+}
+
+@mounted_partitions = grep ( /$target_re/, @mounted );
+
+# Prevent overwriting your system partitions :-)
+if ( scalar @mounted_partitions > 0 ) {
+    if ( defined $is_c_part ) {
+        say "You specified the 'c' partition, ",
+          "another partition from this device may be mounted:\n\n",
+          @mounted_partitions, "\nBailing out.";
+    }
+    else {
+        say $target_re . " is mounted, bailing out.";
+    }
+
+    exit 1;
+}
+
+my $origin_stat = stat $origin;
+
+# Get file size. It will stop here if the file does not exist, but if the file
+# cannot be read, it will stop in the next block instead
+unless ( defined $origin_stat ) {
+    say $origin . ": " . $!;
+    say "Leaving.";
+    exit 1;
+}
+my $total_bytes = $origin_stat->size;
+
+my ( $if, $of, $buffer );
+open( $if, "< :raw :bytes", $origin )
+  or die "Cannot open " . $origin . " for reading: " . $!;
+open( $of, "> :raw :bytes", $target )
+  or die "Cannot open " . $target . " for writing: " . $!;
+
+say "Input:  " . $origin . " (" . btomb($total_bytes) . "MB)";
+say "Output: " . $target;
+
+my $bufmb = $ENV{BUFSIZ};
+$bufmb = 8 if ( not defined $bufmb or $bufmb !~ /^\d+$/ );
+
+my $BUFSIZ       = $bufmb * ( 2**20 );
+my $copied_bytes = 0;
+my $started      = time;
+my $last         = 0;
+my $elapsed;
+print "\nStarting...\r";
+while ( read( $if, $buffer, $BUFSIZ ) ) {
+    unless ( print $of $buffer ) {
+        die "Could not write to " . $target . ": " . $!;
+    }
+    $copied_bytes += $BUFSIZ;
+
+    # Don't make the bar go over 100%
+    if ( $copied_bytes > $total_bytes ) {
+        $copied_bytes = $total_bytes;
+    }
+    my $now = time;
+
+    # Refresh the display every second, but also avoid divisions by
+    # zero in the first run
+    if ( $now > $last and $now - $started > 0 ) {
+        $last    = $now;
+        $elapsed = $now - $started;
+        my $speed  = $copied_bytes / ( $now - $started );
+        my $eta    = ( $elapsed * $total_bytes / $copied_bytes ) - $elapsed;
+        my $pctage = $copied_bytes * 100 / $total_bytes;
+
+        # The bar length is 20 + '>', so compute the progress bar accordingly
+        my $pbar = sprintf( "%s>", "=" x int( $pctage / 5 ) );
+        printf( "%5dMB %4d%% [%-21s] %4.2fMB/s ETA: %s\r",
+            btomb($copied_bytes), $pctage, $pbar, btomb($speed), stoms($eta) );
+    }
+}
+
+# We're done, remove the progress bar
+print " " x 80 . "\r";
+
+close $if;
+close $of;
+
+say "Finished copying in " . stoms($elapsed) . ".";
+print "\nShould i compute checksums? (may be very slow) [y/N] ";
+chomp( my $reply = <STDIN> );
+unless ( $reply =~ /[yY]/ ) {
+    say "Leaving.";
+    exit 0;
+}
+
+say "\nComputing checksums... ";
+my @shasums;
+for ( $origin, $target ) {
+    my $sha = Digest::SHA->new(256);
+    $sha->addfile($_);
+    print "\t" . $_ . "... ";
+    push @shasums, $sha->hexdigest;
+    say "Done.";
+}
+print "Checksums are ";
+say $shasums[0] eq $shasums[1] ? "OK." : "NOT OK!";
+
+__END__
+=pod
+
+=encoding utf8
+
+=head1 NAME
+
+sdd - safe and simple dd(1)
+
+=head1 SYNOPSIS
+
+sdd input_file output_file
+
+=head1 DESCRIPTION
+
+This script is a simple dd(1) clone targetted at copying img and iso files to
+usb disks with extra features:
+
+=over
+
+=item *
+
+Prevent overwriting mounted partition, and as such can save you reinstalling
+your system if you did a mistake ;-)
+
+=item *
+
+Display a progress bar like L<pv> does
+
+=item *
+
+It can compute SHA256 checksums after the copy is done
+
+=back
+
+No external dependencies out of Perl are required. It has been written for
+OpenBSD and doesn't try to be much portable (but should on any posix system).
+
+=head1 EXAMPLE
+
+sdd installXX.img /dev/rsd2c
+
+Note that you can use block devices on OpenBSD, it will convert to raw
+devices automatically, which are faster and recommended:
+
+sdd installXX.img /dev/sd2c
+
+=head1 ENVIRONMENT
+
+=over
+
+=item BUFSIZ
+
+Use C<BUFSIZ> mebibytes for the read buffer. This is the equivalent of the
+C<bs> argument to dd(1). The default is 8 mebibytes.
+
+=back
+
+=head1 BUGS
+
+=over
+
+=item *
+
+C<BUFSIZ> should be C<BLOCKSIZE> but it's already used by various filesystem
+utilities and is clashing with mount(8).
+
+=item *
+
+The conversion from raw devices to character devices and vice-versa is
+only granted if devices are in /dev -- and is limited to OpenBSD.
+
+=back
+
+=head1 TEST SUITE
+
+A test suite is available, run C<./testsuite> as root. It assumes vnd0
+is not used, and only works on OpenBSD.
+
+=head1 LICENSE
+
+This is free and unencumbered software released into the public domain.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or
+distribute this software, either in source code form or as a compiled
+binary, for any purpose, commercial or non-commercial, and by any
+means.
+
+In jurisdictions that recognize copyright laws, the author or authors
+of this software dedicate any and all copyright interest in the
+software to the public domain. We make this dedication for the benefit
+of the public at large and to the detriment of our heirs and
+successors. We intend this dedication to be an overt act of
+relinquishment in perpetuity of all present and future rights to this
+software under copyright law.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+For more information, please refer to <http://unlicense.org/>

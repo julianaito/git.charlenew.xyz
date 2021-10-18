@@ -1,0 +1,8 @@
+Here is an index and a short description for each directory:
+
+LICENSE         - The Unlicense, applied to any project unless
+                  specified otherwise.
+
+cpwg            - cheap password generator (awk)
+mountpoint      - clone of Linux mountpoint(1) for OpenBSD (c)
+sdd             - safer dd(1) (perl)

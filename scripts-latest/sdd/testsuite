@@ -1,0 +1,53 @@
+#!/bin/sh
+
+if test "$(id -u)" != 0; then
+    echo "Please run me as root"
+    exit
+fi
+
+mntpnt="$(mktemp -d)"
+dlabel="$(mktemp)"
+reset="$(tput sgr0)"
+bold="$(tput bold)"
+
+_create_image() {
+    rm -f ./testdisk.img
+    dd if=/dev/zero of=./testdisk.img count=4 bs=1M
+
+    mount_vnd ./testdisk.img vnd0
+    printf "/ 4M\n" > $dlabel
+    disklabel -A -w -T$dlabel vnd0
+    newfs vnd0a
+}
+
+_bprint() {
+    printf "${bold}${@}${reset}"
+}
+
+_bprint "\n=> Create image... \n"
+_create_image
+
+_bprint "\n=> Mount partition 'a'... \n"
+mount /dev/vnd0a $mntpnt
+if test $? -ne 0; then
+    echo "Bailing out: partition 'a' does not want to be mounted"
+else
+
+    for dev in vnd0c rvnd0c vnd0a rvnd0a; do
+        _bprint "\n=> Test $dev... (should refuse): \n"
+        ./sdd testdisk.img /dev/$dev
+    done
+
+    _bprint "\n=> Unmount 'a'\n"
+    umount $mntpnt
+    _bprint "\n=> Test rvnd0c (OK, will destroy the test image):\n"
+    echo n | ./sdd ./testdisk.img /dev/rvnd0c
+
+    # XXX for some reason i'm unable to try with 'a' instead, it hangs
+    # indefinetely.
+fi
+
+_bprint "\n=> Cleaning up... \n"
+vnconfig -u vnd0
+rm testdisk.img $dlabel
+rmdir $mntpnt

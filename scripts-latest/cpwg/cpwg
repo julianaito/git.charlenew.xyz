@@ -1,0 +1,57 @@
+#!/usr/bin/awk -f
+
+function help(helpmsg) {
+    if (helpmsg)
+        print helpmsg
+    print "cpwg is a cheap password generator."
+    print "Usage: cpwg [nolc] [nouc] [nonum] [nospec] [len]"
+    exit
+}
+
+function getopt() {
+    for (optidx = 1; optidx < ARGC; optidx++)
+        if (ARGV[optidx] == "nolc")
+            wanted["lower"] = 0
+        else if (ARGV[optidx] == "nouc")
+            wanted["upper"] = 0
+        else if (ARGV[optidx] == "nonum")
+            wanted["numbs"] = 0
+        else if (ARGV[optidx] == "nospec")
+            wanted["specs"] = 0
+        else if (ARGV[optidx] ~ /^[0-9]+$/)
+            passlen = ARGV[optidx]
+        else
+            help("Error: Unknown option '" ARGV[optidx] "'")
+    for (w in wanted)
+        wsum += wanted[w]
+    if (wsum == 0)
+        help("Error: Some character class is needed to generate a password.")
+    if (passlen <= 0)
+        help("The password length must be a positive number.")
+}
+
+BEGIN {
+    passlen = 32
+    wanted["lower"] = 1
+    charclass["lower"] = "abcdefghijklmnopqrstuvwxyz"
+    wanted["upper"] = 1
+    charclass["upper"] = toupper(charclass["lower"])
+    wanted["numbs"] = 1
+    charclass["numbs"] = "0123456789"
+    wanted["specs"] = 1
+    charclass["specs"] = "&~#({[-_@)]}*%!:/;.,?\\"
+
+    getopt()
+
+    for (w in wanted)
+        if (wanted[w] != 0)
+            allowedchars = allowedchars "" charclass[w]
+    allchars_l = split(allowedchars, allchars, "")
+
+    srand()
+    for (j = 0; j < passlen; j++) {
+        selected = int(allchars_l * rand() + 1)
+        printf("%s", allchars[selected])
+    }
+    print
+}

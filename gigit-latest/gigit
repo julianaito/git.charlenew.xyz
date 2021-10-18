@@ -1,0 +1,83 @@
+#!/bin/sh
+
+# H1 and window title
+TITLE="Charlène's repositories"
+# subdirectories to index
+PROJECTS="gigit dotfiles mystuff.public scripts"
+
+HEADER="
+<!doctype html>
+<html>
+<head>
+    <meta charset=\"utf-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <link rel=\"stylesheet\" href=\"style.css\" />
+    <link rel=\"icon\" href=\"favicon.ico\" />
+    <title>${TITLE}</title>
+</head>
+<body>
+<h1><a href=\".\">${TITLE}</a></h1>
+<hr/>
+<p>
+<i>From 2020/11/26, default branches have been moved to 'main'. If you have cloned a repo
+from here, either clone it again, or issue the following commands in the repo directory:</i>
+</p>
+<pre><code>$ git checkout master
+$ git branch -m master main
+$ git fetch
+$ git branch --unset-upstream
+$ git branch -u origin/main
+</code></pre>
+"
+PROJECT_TEMPLATE="
+<h2>%s </h2>
+    <p>
+    <a href=\"%s/CHANGELOG\">Changelog</a> &nbsp;|&nbsp;
+    <a href=\"%s.git\">Git clone</a> &nbsp;|&nbsp;
+    <a href=\"%s-latest.tar.gz\">Download latest</a> &nbsp;|&nbsp;
+    <a href=\"%s\">Browse</a>
+    </p>
+    <p><small><i>Latest update: %s</i></small></p>
+%s
+"
+FOOTER="</body></html>"
+
+_help() {
+    cat <<-EOF
+$0: poor girl's git indexer
+
+Syntax:
+
+$0 WWWSRC PROJECT_NAME
+EOF
+exit 1
+}
+
+_create_index() { # base_www
+    for project in $PROJECTS; do
+        cd "${1}/${project}.git"
+        descr="$(cat description)"
+        last="$(git log HEAD~1..HEAD | awk '/Date:/{sub(/Date: +/,"");print}')"
+        cd - 2>&1 > /dev/null
+        printf "${PROJECT_TEMPLATE}" \
+            "${project}" "${project}" "${project}" "${project}" "${project}" "${last}" "${descr}"
+        descr="" # in case the next project as none
+    done
+}
+
+# Add changelog -- they're not in tarballs only for display
+_create_changelog() { #base_www project
+    cd "${1}/${2}.git"
+    git log --output="${1}/${2}/CHANGELOG"
+    cd - 2>&1 > /dev/null
+}
+
+BASE_WWW="${1}"
+PROJECT="${2}"
+if test -z "${BASE_WWW}" -o -z "${PROJECT}"; then
+    _help
+fi
+echo "${HEADER}" > "${BASE_WWW}"/index.html
+_create_index "${BASE_WWW}" >> "${BASE_WWW}"/index.html
+echo "${FOOTER}" >> "${BASE_WWW}"/index.html
+_create_changelog "${BASE_WWW}" "${PROJECT}"

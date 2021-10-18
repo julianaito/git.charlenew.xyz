@@ -1,0 +1,36 @@
+$OpenBSD$
+
+Tentatively add media description
+Change send key to Ctrl-_ instead of escape, this avoids messing up with
+unrecognized keys sending escape and as such, toots.
+
+Index: nanotodon.c
+--- nanotodon.c.orig
++++ nanotodon.c
+@@ -424,10 +424,17 @@ void stream_event_update(struct json_object *jobj_from
+ 		for (int i = 0; i < json_object_array_length(media_attachments); ++i) {
+ 			struct json_object *obj = json_object_array_get_idx(media_attachments, i);
+ 			struct json_object *url;
++			struct json_object *description;
+ 			read_json_fom_path(obj, "url", &url);
++			read_json_fom_path(obj, "description", &description);
+ 			if(json_object_is_type(url, json_type_string)) {
+ 				waddstr(scr, noemojiflag ? "<LINK>" : "🔗");
+ 				waddstr(scr, json_object_get_string(url));
++				if(json_object_is_type(description, json_type_string)) {
++					waddstr(scr, "\n(");
++					waddstr(scr, json_object_get_string(description));
++					waddstr(scr, ")\n");
++				}
+ 				waddstr(scr, "\n");
+ 			}
+ 		}
+@@ -1111,7 +1118,7 @@ retry1:
+ 			
+ 			wrefresh(pad);
+ 			wrefresh(scr);
+-		} else if(c == 0x1b && txt.string) {
++		} else if(c == 0x1f && txt.string) {
+ 			// 投稿処理
+ 			werase(pad);
+ 			wchar_t *text = malloc(sizeof(wchar_t) * (txt.stringlen + 1));
